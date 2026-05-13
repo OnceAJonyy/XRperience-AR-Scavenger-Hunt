@@ -36,7 +36,7 @@
        END OF CONFIG
   ═══════════════════════════════════════════════════════════════ -->
 
-  <script src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+  <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image.prod.js"></script>
   <script src="https://cdn.jsdelivr.net/gh/hiukim/mind-ar-js@1.2.5/dist/mindar-image-aframe.prod.js"></script>
 
@@ -237,6 +237,7 @@
 
   <!-- MindAR A-Frame scene -->
   <a-scene id="ar-scene"
+    style="width: 100%; height: 100%;"
     mindar-image="imageTargetSrc: ./targets.mind; autoStart: false; uiLoading: no; uiError: yes; uiScanning: no;"
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true"
@@ -408,30 +409,17 @@ function showScreen(id) {
 async function startAR() {
   console.log('Starting AR...');
 
-  // Request camera permission first (important for iOS)
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      console.log('Camera permission granted');
-      stream.getTracks().forEach(track => track.stop()); // Stop the test stream
-    } catch (err) {
-      console.error('Camera permission denied:', err);
-      alert('Camera access is required for AR. Please allow camera permissions and try again.');
-      return;
-    }
-  }
-
   showScreen('ar-screen');
   if (arStarted) return;
   arStarted = true;
 
   const scene = document.getElementById('ar-scene');
-  console.log('Scene element:', scene);
+  console.log('Scene element:', scene, 'scene.hasLoaded:', scene.hasLoaded, 'scene.isLoaded:', scene.is && scene.is('loaded'));
 
   const startMindAR = () => {
     console.log('Starting MindAR system...');
     const sys = scene.systems['mindar-image-system'];
-    console.log('MindAR system:', sys);
+    console.log('MindAR system:', sys, 'scene.systems keys:', Object.keys(scene.systems || {}));
     if (sys) {
       sys.start().then(() => console.log('MindAR started successfully')).catch(err => console.error('MindAR start error:', err));
     } else {
@@ -439,7 +427,7 @@ async function startAR() {
     }
   };
 
-  if (scene.hasLoaded || scene.is('loaded')) {
+  if (scene.hasLoaded || (scene.is && scene.is('loaded'))) {
     startMindAR();
   } else {
     scene.addEventListener('loaded', startMindAR, { once: true });

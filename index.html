@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>AR Scavenger Hunt</title>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       ORGANISER CONFIG — Edit this section only. No coding needed!
+  ═══════════════════════════════════════════════════════════════ -->
+  <script>
+    const HUNT_CONFIG = {
+      title:       "Brainhack 2026",       // Shown on the home screen
+      subtitle:    "XRperience 2026 AR Scavenger Hunt", // Event name / tagline
+      duration:    30,                       // Hunt duration in minutes
+      targetFile:  "targets.mind",           // Your compiled .mind file (same folder)
+
+      // Define your 10 collectible items below.
+      // 'index' matches the order you uploaded images to the MindAR compiler (0-based).
+      items: [
+        { index: 0, name: "DNA Strand",   emoji: "🧬", desc: "Life's blueprint. Double helix.",        points: 50 },
+        { index: 1, name: "Lab Flask",    emoji: "⚗️",  desc: "Bubbling with potential.",               points: 40 },
+        { index: 2, name: "Robot",        emoji: "🤖", desc: "The future of automation.",              points: 60 },
+        { index: 3, name: "Idea Bulb",    emoji: "💡", desc: "A spark of innovation.",                 points: 45 },
+        { index: 4, name: "Network",      emoji: "🌐", desc: "Connected to everything.",               points: 55 },
+        { index: 5, name: "Crystal",      emoji: "💎", desc: "Precision-cut insight.",                 points: 70 },
+        { index: 6, name: "Satellite",    emoji: "🛰️", desc: "Orbiting above the event hall.",         points: 65 },
+        { index: 7, name: "Circuit",      emoji: "🔌", desc: "Backbone of digital innovation.",        points: 35 },
+        { index: 8, name: "Trophy",       emoji: "🏆", desc: "Reserved for the most diligent hunter.", points: 80 },
+        { index: 9, name: "Golden Star",  emoji: "⭐", desc: "The rarest item. You found it!",         points: 100 },
+      ]
+    };
+  </script>
+  <!-- ═══════════════════════════════════════════════════════════════
+       END OF CONFIG
+  ═══════════════════════════════════════════════════════════════ -->
+
+  <script type="module" src="https://cdn.jsdelivr.net/npm/aframe@1.5.0/dist/aframe.min.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+  <script type="module" src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap');
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0a0a12;
+      --surface:  #12121e;
+      --card:     #1a1a2e;
+      --border:   rgba(120,100,255,0.2);
+      --accent:   #7c5cfc;
+      --teal:     #00e5c0;
+      --gold:     #ffd166;
+      --danger:   #ff6b6b;
+      --text:     #f0eeff;
+      --muted:    #7a789a;
+      --mono:     'Space Mono', monospace;
+      --display:  'Syne', sans-serif;
+    }
+
+    html, body { height: 100%; overflow: hidden; background: var(--bg); font-family: var(--display); color: var(--text); }
+
+    /* ── SCREENS ── */
+    .screen {
+      position: fixed; inset: 0; display: none;
+      flex-direction: column; background: var(--bg);
+      overflow-y: auto; -webkit-overflow-scrolling: touch;
+      z-index: 10;
+    }
+    .screen.active { display: flex; }
+
+    /* ── SPLASH ── */
+    #splash {
+      align-items: center; justify-content: center;
+      text-align: center; padding: 2.5rem 2rem;
+    }
+    #splash::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 70% 45% at 50% 28%, rgba(124,92,252,.18) 0%, transparent 70%);
+    }
+    .grid-bg {
+      position: absolute; inset: 0; pointer-events: none;
+      background-image: linear-gradient(rgba(124,92,252,.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(124,92,252,.05) 1px, transparent 1px);
+      background-size: 40px 40px;
+    }
+    .logo-ring {
+      width: 120px; height: 120px; border-radius: 50%;
+      border: 2px solid var(--accent);
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 1.5rem; position: relative; z-index: 1;
+    }
+    .logo-ring::before {
+      content: ''; position: absolute; inset: -9px; border-radius: 50%;
+      border: 1px solid rgba(124,92,252,.25);
+    }
+    .logo-ring::after {
+      content: ''; position: absolute; inset: -18px; border-radius: 50%;
+      border: 1px solid rgba(124,92,252,.1);
+    }
+    .logo-ring span { font-size: 52px; }
+    .splash-title { font-size: 34px; font-weight: 800; letter-spacing: -0.5px; position: relative; z-index: 1; }
+    .splash-title em { color: var(--accent); font-style: normal; }
+    .splash-sub { font-family: var(--mono); font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: .5rem 0 1.25rem; position: relative; z-index: 1; }
+    .splash-desc { font-size: 15px; color: var(--muted); line-height: 1.65; max-width: 300px; margin: 0 auto 2rem; position: relative; z-index: 1; }
+    .stat-row { display: flex; gap: 12px; justify-content: center; margin-bottom: 2.5rem; position: relative; z-index: 1; }
+    .stat-pill { background: var(--card); border: 1px solid var(--border); border-radius: 100px; padding: 8px 18px; }
+    .stat-pill .n { display: block; font-size: 22px; font-weight: 700; color: var(--teal); font-family: var(--mono); }
+    .stat-pill .l { display: block; font-size: 10px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+    .btn { border: none; border-radius: 14px; font-family: var(--display); font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; padding: 16px 24px; transition: transform .15s, box-shadow .15s; position: relative; z-index: 1; }
+    .btn:active { transform: scale(.97); }
+    .btn-primary { background: var(--accent); color: #fff; margin-bottom: .75rem; }
+    .btn-primary:hover { box-shadow: 0 8px 28px rgba(124,92,252,.4); }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); margin-bottom: .75rem; font-size: 14px; padding: 12px 24px; }
+    .btn-ghost:hover { color: var(--text); border-color: rgba(124,92,252,.5); }
+
+    /* ── AR VIEW ── */
+    #ar-screen { background: #000; }
+    #ar-scene { position: absolute; inset: 0; z-index: 0; }
+    .ar-hud {
+      position: absolute; inset: 0; z-index: 20;
+      pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+    }
+    .hud-top, .hud-bottom { pointer-events: auto; padding: 16px; display: flex; align-items: center; justify-content: space-between; }
+    .hud-top { background: linear-gradient(to bottom, rgba(0,0,0,.65), transparent); }
+    .hud-bottom { background: linear-gradient(to top, rgba(0,0,0,.8), transparent); justify-content: center; flex-direction: column; gap: 10px; }
+    .hud-badge { background: rgba(124,92,252,.3); border: 1px solid var(--accent); border-radius: 100px; padding: 6px 16px; font-family: var(--mono); font-size: 12px; color: var(--teal); }
+    .hud-back { background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.15); border-radius: 100px; padding: 7px 16px; color: #fff; font-family: var(--mono); font-size: 12px; cursor: pointer; }
+    .hud-hint { font-family: var(--mono); font-size: 11px; color: rgba(255,255,255,.5); letter-spacing: 1.5px; animation: blink 2s ease infinite; }
+    @keyframes blink { 0%,100% { opacity: .4; } 50% { opacity: 1; } }
+
+    /* Scan corners overlay */
+    .scan-overlay { pointer-events: none; }
+    .corner { position: absolute; width: 36px; height: 36px; border-color: var(--teal); border-style: solid; }
+    .corner.tl { top: 38%; left: 50%; transform: translate(-100px,-100px); border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+    .corner.tr { top: 38%; left: 50%; transform: translate(64px,-100px); border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+    .corner.bl { top: 38%; left: 50%; transform: translate(-100px,64px); border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+    .corner.br { top: 38%; left: 50%; transform: translate(64px,64px); border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+    /* ── FOUND POPUP ── */
+    .overlay {
+      display: none; position: fixed; inset: 0; z-index: 100;
+      background: rgba(10,10,18,.92);
+      align-items: center; justify-content: center;
+    }
+    .overlay.show { display: flex; }
+    .found-card {
+      background: var(--card); border: 1px solid var(--accent); border-radius: 24px;
+      padding: 2.25rem 1.75rem; text-align: center; max-width: 300px; width: 90%;
+      position: relative; overflow: hidden;
+    }
+    .found-card::before {
+      content: ''; position: absolute; inset: 0; pointer-events: none;
+      background: radial-gradient(ellipse 80% 50% at 50% 0%, rgba(124,92,252,.22) 0%, transparent 70%);
+    }
+    .found-emoji { font-size: 64px; display: block; margin-bottom: 1rem; animation: popIn .4s cubic-bezier(.34,1.56,.64,1); }
+    @keyframes popIn { from { transform: scale(0) rotate(-15deg); } to { transform: scale(1) rotate(0deg); } }
+    .found-name { font-size: 22px; font-weight: 800; margin-bottom: .5rem; }
+    .found-desc { font-size: 14px; color: var(--muted); line-height: 1.55; margin-bottom: 1.25rem; }
+    .found-pts { display: inline-block; background: rgba(255,209,102,.15); border: 1px solid rgba(255,209,102,.35); border-radius: 100px; padding: 5px 18px; font-family: var(--mono); font-size: 14px; color: var(--gold); margin-bottom: 1.5rem; }
+    .found-already { display: inline-block; background: rgba(122,120,154,.15); border: 1px solid var(--border); border-radius: 100px; padding: 5px 18px; font-family: var(--mono); font-size: 13px; color: var(--muted); margin-bottom: 1.5rem; }
+    .btn-collect { background: var(--teal); color: #041a14; border: none; border-radius: 13px; padding: 15px 24px; font-family: var(--display); font-size: 16px; font-weight: 700; cursor: pointer; width: 100%; transition: transform .15s, box-shadow .15s; }
+    .btn-collect:hover { box-shadow: 0 6px 22px rgba(0,229,192,.35); }
+    .btn-dismiss { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 13px; padding: 11px 24px; font-family: var(--display); font-size: 14px; cursor: pointer; width: 100%; margin-top: .75rem; }
+
+    /* ── INVENTORY ── */
+    #inventory { background: var(--bg); }
+    .inv-header { padding: 2rem 1.5rem 1.25rem; background: var(--surface); border-bottom: 1px solid var(--border); }
+    .inv-header h2 { font-size: 24px; font-weight: 800; margin-bottom: .25rem; }
+    .inv-header p { font-size: 13px; color: var(--muted); font-family: var(--mono); }
+    .score-row { display: flex; gap: 10px; margin-top: 1rem; }
+    .score-box { flex: 1; background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 12px; text-align: center; }
+    .score-box .v { display: block; font-size: 26px; font-weight: 800; font-family: var(--mono); color: var(--teal); }
+    .score-box .k { display: block; font-size: 10px; color: var(--muted); letter-spacing: 1.5px; text-transform: uppercase; margin-top: 2px; }
+    .inv-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 1.25rem; flex: 1; }
+    .inv-item { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 1.1rem; display: flex; flex-direction: column; align-items: center; text-align: center; position: relative; overflow: hidden; transition: border-color .2s; }
+    .inv-item.got { border-color: rgba(0,229,192,.4); background: linear-gradient(135deg, #1a1a2e, #0c1f1a); }
+    .inv-item.not { opacity: .45; }
+    .item-emoji { font-size: 38px; margin-bottom: 8px; }
+    .item-name { font-size: 13px; font-weight: 700; margin-bottom: 3px; }
+    .item-pts { font-family: var(--mono); font-size: 11px; color: var(--gold); }
+    .chk { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: rgba(0,229,192,.2); color: var(--teal); display: flex; align-items: center; justify-content: center; font-size: 13px; }
+    .lck { position: absolute; top: 8px; right: 8px; width: 22px; height: 22px; border-radius: 50%; background: rgba(122,120,154,.15); color: var(--muted); display: flex; align-items: center; justify-content: center; font-size: 11px; }
+    .inv-footer { padding: 1rem 1.5rem 2rem; }
+
+    /* ── TOAST ── */
+    #toast {
+      position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--accent); color: #fff; padding: 10px 22px; border-radius: 100px;
+      font-family: var(--mono); font-size: 13px; white-space: nowrap;
+      opacity: 0; transition: opacity .3s; pointer-events: none; z-index: 999;
+    }
+    #toast.show { opacity: 1; }
+
+    /* ── TIMER ── */
+    .timer-bar { position: fixed; top: 0; left: 0; right: 0; height: 3px; background: var(--border); z-index: 200; }
+    .timer-fill { height: 100%; background: var(--teal); transition: width 1s linear; }
+
+    /* ── COMPLETION ── */
+    #complete { background: var(--bg); align-items: center; justify-content: center; text-align: center; padding: 2.5rem 2rem; }
+    .complete-icon { font-size: 72px; display: block; margin-bottom: 1.5rem; animation: popIn .5s cubic-bezier(.34,1.56,.64,1); }
+    .complete-title { font-size: 30px; font-weight: 800; margin-bottom: .5rem; }
+    .complete-sub { font-size: 14px; color: var(--muted); margin-bottom: 2rem; font-family: var(--mono); }
+    .final-score { background: var(--card); border: 1px solid rgba(255,209,102,.3); border-radius: 20px; padding: 2rem; margin-bottom: 2rem; width: 100%; max-width: 280px; }
+    .final-score .big { font-size: 56px; font-weight: 800; font-family: var(--mono); color: var(--gold); display: block; }
+    .final-score .lbl { font-size: 12px; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); }
+  </style>
+</head>
+<body>
+
+<!-- Timer bar -->
+<div class="timer-bar"><div class="timer-fill" id="timer-fill"></div></div>
+
+<!-- Toast notification -->
+<div id="toast">✓ Item collected!</div>
+
+<!-- ════════════════ SPLASH ════════════════ -->
+<div class="screen active" id="splash">
+  <div class="grid-bg"></div>
+  <div class="logo-ring"><span>🔍</span></div>
+  <h1 class="splash-title" id="splash-title">AR<em>Hunt</em></h1>
+  <p class="splash-sub" id="splash-sub">Workshop Scavenger Hunt</p>
+  <p class="splash-desc">Scan hidden image markers around the event hall to collect AR items. Find them all to win!</p>
+  <div class="stat-row">
+    <div class="stat-pill"><span class="n" id="stat-markers">10</span><span class="l">Markers</span></div>
+    <div class="stat-pill"><span class="n" id="stat-pts">500</span><span class="l">Max pts</span></div>
+    <div class="stat-pill"><span class="n" id="stat-time">60m</span><span class="l">Hunt time</span></div>
+  </div>
+  <button class="btn btn-primary" onclick="startAR()">📷 Start Scanning</button>
+  <button class="btn btn-ghost" onclick="showScreen('inventory')">🎒 My Inventory</button>
+</div>
+
+<!-- ════════════════ AR SCREEN ════════════════ -->
+<div class="screen" id="ar-screen">
+
+  <!-- MindAR A-Frame scene -->
+  <a-scene id="ar-scene"
+    mindar-image="imageTargetSrc: targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+    color-space="sRGB"
+    renderer="colorManagement: true; physicallyCorrectLights: true"
+    vr-mode-ui="enabled: false"
+    device-orientation-permission-ui="enabled: false"
+  >
+    <a-assets></a-assets>
+    <a-camera position="0 0 0" look-controls="enabled: false"></a-camera>
+
+    <!-- Item target entities — one per marker (index 0-9) -->
+    <!-- Each shows a floating emoji plane when the marker is recognised -->
+    <a-entity id="target-0" mindar-image-target="targetIndex: 0">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85" border-radius="0.05"></a-plane>
+      <a-text id="ar-text-0" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-1" mindar-image-target="targetIndex: 1">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-1" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-2" mindar-image-target="targetIndex: 2">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-2" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-3" mindar-image-target="targetIndex: 3">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-3" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-4" mindar-image-target="targetIndex: 4">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-4" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-5" mindar-image-target="targetIndex: 5">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-5" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-6" mindar-image-target="targetIndex: 6">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-6" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-7" mindar-image-target="targetIndex: 7">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-7" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-8" mindar-image-target="targetIndex: 8">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-8" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+    <a-entity id="target-9" mindar-image-target="targetIndex: 9">
+      <a-plane position="0 0 0" height="0.552" width="1" color="#1a1a2e" opacity="0.85"></a-plane>
+      <a-text id="ar-text-9" value="" position="0 0.02 0.01" align="center" color="#f0eeff" width="1.8" wrap-count="20"></a-text>
+    </a-entity>
+  </a-scene>
+
+  <!-- HUD overlay -->
+  <div class="ar-hud">
+    <div class="hud-top">
+      <button class="hud-back" onclick="stopAR()">← Exit</button>
+      <div class="hud-badge" id="ar-badge">0 / 10 found</div>
+    </div>
+    <div class="hud-bottom">
+      <p class="hud-hint">POINT CAMERA AT HIDDEN MARKERS</p>
+    </div>
+  </div>
+
+  <!-- Scan corner decorations -->
+  <div class="scan-overlay" style="position:absolute;inset:0;pointer-events:none;">
+    <div class="corner tl"></div>
+    <div class="corner tr"></div>
+    <div class="corner bl"></div>
+    <div class="corner br"></div>
+  </div>
+</div>
+
+<!-- ════════════════ FOUND POPUP ════════════════ -->
+<div class="overlay" id="found-overlay">
+  <div class="found-card">
+    <span class="found-emoji" id="found-emoji">🧬</span>
+    <div class="found-name" id="found-name">Item Name</div>
+    <div class="found-desc" id="found-desc">Description here.</div>
+    <div id="found-pts-wrap">
+      <div class="found-pts" id="found-pts">+50 pts</div>
+    </div>
+    <button class="btn-collect" id="btn-collect" onclick="collectCurrent()">Collect Item →</button>
+    <button class="btn-dismiss" onclick="closeFoundPopup()">Keep Scanning</button>
+  </div>
+</div>
+
+<!-- ════════════════ INVENTORY ════════════════ -->
+<div class="screen" id="inventory">
+  <div class="inv-header">
+    <h2>My Collection</h2>
+    <p id="inv-sub">0 of 10 items found</p>
+    <div class="score-row">
+      <div class="score-box"><span class="v" id="inv-pts">0</span><span class="k">Points</span></div>
+      <div class="score-box"><span class="v" id="inv-found">0</span><span class="k">Found</span></div>
+      <div class="score-box"><span class="v" id="inv-remain">10</span><span class="k">Remaining</span></div>
+    </div>
+  </div>
+  <div class="inv-grid" id="inv-grid"></div>
+  <div class="inv-footer">
+    <button class="btn btn-primary" onclick="startAR()">📷 Keep Scanning</button>
+    <button class="btn btn-ghost" onclick="showScreen('splash')">🏠 Home</button>
+  </div>
+</div>
+
+<!-- ════════════════ COMPLETION ════════════════ -->
+<div class="screen" id="complete">
+  <span class="complete-icon">🏆</span>
+  <h2 class="complete-title">Hunt Complete!</h2>
+  <p class="complete-sub" id="complete-sub">You found all 10 items</p>
+  <div class="final-score">
+    <span class="big" id="final-pts">500</span>
+    <span class="lbl">Total Points</span>
+  </div>
+  <button class="btn btn-primary" onclick="showScreen('inventory')">See Full Collection</button>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE & STORAGE
+═══════════════════════════════════════════════ */
+const STORAGE_KEY = 'ar_hunt_collected';
+let collected = new Set(JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'));
+let currentFoundIndex = null;
+let arStarted = false;
+let timerInterval = null;
+let timerStart = null;
+
+function saveCollected() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify([...collected]));
+}
+
+/* ═══════════════════════════════════════════════
+   INIT — apply config to DOM
+═══════════════════════════════════════════════ */
+(function init() {
+  const cfg = HUNT_CONFIG;
+  document.title = cfg.title;
+  document.getElementById('splash-title').innerHTML = cfg.title.replace(/(\w+)$/, '<em>$1</em>');
+  document.getElementById('splash-sub').textContent = cfg.subtitle;
+
+  const totalPts = cfg.items.reduce((s, i) => s + i.points, 0);
+  document.getElementById('stat-markers').textContent = cfg.items.length;
+  document.getElementById('stat-pts').textContent = totalPts;
+  document.getElementById('stat-time').textContent = cfg.duration + 'm';
+
+  // Set AR text labels for each target
+  cfg.items.forEach(item => {
+    const el = document.getElementById('ar-text-' + item.index);
+    if (el) el.setAttribute('value', item.emoji + ' ' + item.name + '\n+' + item.points + ' pts');
+  });
+
+  renderInventory();
+  updateBadge();
+})();
+
+/* ═══════════════════════════════════════════════
+   SCREEN ROUTING
+═══════════════════════════════════════════════ */
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (id === 'inventory') renderInventory();
+}
+
+/* ═══════════════════════════════════════════════
+   AR — START / STOP
+═══════════════════════════════════════════════ */
+async function startAR() {
+  showScreen('ar-screen');
+  if (arStarted) return;
+  arStarted = true;
+
+  const scene = document.getElementById('ar-scene');
+
+  // Wait for scene to be ready
+  scene.addEventListener('loaded', () => {
+    const sys = scene.systems['mindar-image-system'];
+    if (sys) sys.start();
+  }, { once: true });
+
+  // Attach found events to each target entity
+  HUNT_CONFIG.items.forEach(item => {
+    const entity = document.getElementById('target-' + item.index);
+    if (!entity) return;
+
+    entity.addEventListener('targetFound', () => {
+      currentFoundIndex = item.index;
+      showFoundPopup(item);
+    });
+
+    entity.addEventListener('targetLost', () => {
+      if (currentFoundIndex === item.index) {
+        // keep popup open — user may still want to collect
+      }
+    });
+  });
+
+  startTimer();
+}
+
+function stopAR() {
+  showScreen('splash');
+  // Don't actually stop the scene — pausing camera is jarring; just navigate away
+}
+
+/* ═══════════════════════════════════════════════
+   TIMER
+═══════════════════════════════════════════════ */
+function startTimer() {
+  if (timerInterval) return;
+  const durationMs = HUNT_CONFIG.duration * 60 * 1000;
+  timerStart = timerStart || Date.now();
+
+  timerInterval = setInterval(() => {
+    const elapsed = Date.now() - timerStart;
+    const pct = Math.max(0, 1 - elapsed / durationMs);
+    document.getElementById('timer-fill').style.width = (pct * 100) + '%';
+    if (pct <= 0) { clearInterval(timerInterval); }
+  }, 1000);
+}
+
+/* ═══════════════════════════════════════════════
+   FOUND POPUP
+═══════════════════════════════════════════════ */
+function showFoundPopup(item) {
+  document.getElementById('found-emoji').textContent = item.emoji;
+  document.getElementById('found-name').textContent = item.name;
+  document.getElementById('found-desc').textContent = item.desc;
+
+  const already = collected.has(item.index);
+  document.getElementById('found-pts').textContent = '+' + item.points + ' pts';
+  document.getElementById('found-pts-wrap').style.display = already ? 'none' : 'block';
+
+  const collectBtn = document.getElementById('btn-collect');
+  if (already) {
+    collectBtn.textContent = 'Already Collected ✓';
+    collectBtn.style.background = 'var(--muted)';
+    collectBtn.onclick = closeFoundPopup;
+  } else {
+    collectBtn.textContent = 'Collect Item →';
+    collectBtn.style.background = 'var(--teal)';
+    collectBtn.onclick = collectCurrent;
+  }
+
+  document.getElementById('found-overlay').classList.add('show');
+}
+
+function closeFoundPopup() {
+  document.getElementById('found-overlay').classList.remove('show');
+}
+
+function collectCurrent() {
+  if (currentFoundIndex === null) return;
+  if (!collected.has(currentFoundIndex)) {
+    collected.add(currentFoundIndex);
+    saveCollected();
+    showToast('✓ ' + HUNT_CONFIG.items.find(i => i.index === currentFoundIndex)?.name + ' collected!');
+    updateBadge();
+  }
+  closeFoundPopup();
+
+  // Check for completion
+  if (collected.size === HUNT_CONFIG.items.length) {
+    setTimeout(showCompletion, 800);
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   INVENTORY
+═══════════════════════════════════════════════ */
+function renderInventory() {
+  const items = HUNT_CONFIG.items;
+  let pts = 0;
+  collected.forEach(idx => {
+    const item = items.find(i => i.index === idx);
+    if (item) pts += item.points;
+  });
+
+  document.getElementById('inv-pts').textContent = pts;
+  document.getElementById('inv-found').textContent = collected.size;
+  document.getElementById('inv-remain').textContent = items.length - collected.size;
+  document.getElementById('inv-sub').textContent = collected.size + ' of ' + items.length + ' items found';
+
+  const grid = document.getElementById('inv-grid');
+  grid.innerHTML = items.map(item => {
+    const got = collected.has(item.index);
+    return `
+      <div class="inv-item ${got ? 'got' : 'not'}">
+        ${got ? '<div class="chk">✓</div>' : '<div class="lck">🔒</div>'}
+        <div class="item-emoji">${got ? item.emoji : '❓'}</div>
+        <div class="item-name">${got ? item.name : 'Unknown'}</div>
+        <div class="item-pts">${got ? '+' + item.points + ' pts' : '??? pts'}</div>
+      </div>`;
+  }).join('');
+}
+
+function updateBadge() {
+  document.getElementById('ar-badge').textContent = collected.size + ' / ' + HUNT_CONFIG.items.length + ' found';
+}
+
+/* ═══════════════════════════════════════════════
+   COMPLETION SCREEN
+═══════════════════════════════════════════════ */
+function showCompletion() {
+  const totalPts = HUNT_CONFIG.items.reduce((s, i) => s + (collected.has(i.index) ? i.points : 0), 0);
+  document.getElementById('final-pts').textContent = totalPts;
+  document.getElementById('complete-sub').textContent = 'You found all ' + HUNT_CONFIG.items.length + ' items!';
+  showScreen('complete');
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+═══════════════════════════════════════════════ */
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

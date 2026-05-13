@@ -236,7 +236,7 @@
 
   <!-- MindAR A-Frame scene -->
   <a-scene id="ar-scene"
-    mindar-image="imageTargetSrc: targets.mind; autoStart: false; uiLoading: no; uiError: no; uiScanning: no;"
+    mindar-image="imageTargetSrc: targets.mind; autoStart: false; uiLoading: no; uiError: yes; uiScanning: no;"
     color-space="sRGB"
     renderer="colorManagement: true; physicallyCorrectLights: true"
     vr-mode-ui="enabled: false"
@@ -405,16 +405,24 @@ function showScreen(id) {
    AR — START / STOP
 ═══════════════════════════════════════════════ */
 async function startAR() {
+  console.log('Starting AR...');
   showScreen('ar-screen');
   if (arStarted) return;
   arStarted = true;
 
   const scene = document.getElementById('ar-scene');
+  console.log('Scene element:', scene);
 
   // Wait for scene to be ready
   scene.addEventListener('loaded', () => {
+    console.log('Scene loaded, starting MindAR system...');
     const sys = scene.systems['mindar-image-system'];
-    if (sys) sys.start();
+    console.log('MindAR system:', sys);
+    if (sys) {
+      sys.start().then(() => console.log('MindAR started successfully')).catch(err => console.error('MindAR start error:', err));
+    } else {
+      console.error('MindAR system not found');
+    }
   }, { once: true });
 
   // Attach found events to each target entity
@@ -423,6 +431,7 @@ async function startAR() {
     if (!entity) return;
 
     entity.addEventListener('targetFound', () => {
+      console.log('Target found:', item.index);
       currentFoundIndex = item.index;
       showFoundPopup(item);
     });
